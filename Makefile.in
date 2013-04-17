@@ -68,6 +68,9 @@ examples: $(FLINT_LIB) $(EXMP_SOURCES)
 	mkdir -p build/examples
 	$(foreach prog, $(EXMPS), $(CC) $(CFLAGS) $(INCS) $(prog).c -o build/$(prog) $(LIBS) || exit $$?;)
 
+cxx: $(FLINT_LIB)
+	$(MAKE) -C $@ $@
+
 $(FLINT_LIB): $(LIB_SOURCES) $(SOURCES) $(HEADERS) $(LOBJS) | build build/interfaces
 	$(foreach dir, $(BUILD_DIRS), mkdir -p build/$(dir); export BUILD_DIR=../build/$(dir); export MOD_DIR=$(dir); $(MAKE) -C $(dir) shared || exit $$?;)
 	if [ "$(WANT_NTL)" -eq "1" ]; then \
@@ -151,5 +154,5 @@ build/interfaces/NTL-interface.o: interfaces/NTL-interface.cpp
 build/interfaces/test/t-NTL-interface: interfaces/test/t-NTL-interface.cpp
 	$(CXX) $(CFLAGS) $(INCS) $< build/interfaces/NTL-interface.o -o $@ $(LIBS);
 
-.PHONY: profile library clean examples tune check distclean dist install all
+.PHONY: profile library clean examples tune check distclean dist install all cxx
 
