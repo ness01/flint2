@@ -120,29 +120,7 @@ public:
 
 
 #ifdef EXPRESSION_TEMPLATES
-template<unsigned N>
-struct temporaries
-{
-    fmpz head;
-    temporaries<N-1> tail;
-};
-template<>
-struct temporaries<0>
-{
-};
-
-
-template<class T>
-struct evaluator;
-// contract:
-//{
-//    static const unsigned ntemporaries;
-//
-//    // may only be instantiated with N >= ntemporaries
-//    template<unsigned N>
-//    static void eval(fmpz& result, temporaries<N>& temps, const T& data);
-//}
-
+// metaprogrammming helper
 template<bool expr, class True, class False>
 struct if_;
 
@@ -157,6 +135,32 @@ struct if_<false, True, False>
 {
     typedef False result;
 };
+
+
+// a fixed-size stack
+template<unsigned N>
+struct temporaries
+{
+    fmpz head;
+    temporaries<N-1> tail;
+};
+template<>
+struct temporaries<0>
+{
+};
+
+
+// code for evaluating expression templates
+template<class T>
+struct evaluator;
+// contract:
+//{
+//    static const unsigned ntemporaries;
+//
+//    // may only be instantiated with N >= ntemporaries
+//    template<unsigned N>
+//    static void eval(fmpz& result, temporaries<N>& temps, const T& data);
+//}
 
 template<class Op, class Evalop>
 struct evalhelper
@@ -307,6 +311,7 @@ struct evaluator<binary_expr<fmpz, times, fmpz> >
 { };
 
 
+// The actual evaluation happens here.
 template<class Left, class Op, class Right>
 inline fmpz::fmpz(const binary_expr<Left, Op, Right>& expr)
 {

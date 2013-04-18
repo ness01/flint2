@@ -17,8 +17,8 @@ main()
     std::cout << "Hello word" << std::endl;
     //flint::fmpz res = a + b*c;
     //flint::fmpz res = ((((a + b) + c) + d) + e) + f;
-    flint::fmpz res = a + (b + (c + (d + (e + f))));
-    //flint::fmpz res = a*b + c*d + e*f;
+    //flint::fmpz res = a + (b + (c + (d + (e + f))));
+    flint::fmpz res = a*b + c*d + e*f;
     //flint::fmpz res = a + b;
     std::cout << res << std::endl;
     return 0;
