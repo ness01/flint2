@@ -63,12 +63,24 @@ public:
         //fmpz_init(data);
         //fmpz_set(data, o.data);
     }
+    fmpz& operator=(const fmpz& o)
+    {
+        DEBUG("fmpz = [fmpz_set]");
+        fmpz_set(data, o.data);
+        return *this;
+    }
 #ifdef MOVE_SEMANTICS
     fmpz(fmpz&& o)
     {
         DEBUG("fmpz move [fmpz_init; fmpz_swap]");
         fmpz_init(data);
         fmpz_swap(data, o.data);
+    }
+    fmpz& operator=(fmpz&& o)
+    {
+        DEBUG("fmpz move = [fmpz_swap]");
+        fmpz_swap(data, o.data);
+        return *this;
     }
 #endif
 
@@ -97,6 +109,11 @@ public:
         DEBUG("fmpz_mul");
         fmpz_mul(data, l.data, r.data);
     }
+    void addmul(const fmpz& l, const fmpz& r)
+    {
+        DEBUG("fmpz_addmul");
+        fmpz_addmul(data, l.data, r.data);
+    }
 
 #ifdef EXPRESSION_TEMPLATES
     template<class Right>
@@ -115,6 +132,15 @@ public:
 
     template<class Left, class Op, class Right>
     fmpz(const binary_expr<Left, Op, Right>& expr);
+
+    template<class Left, class Op, class Right>
+    fmpz& operator=(const binary_expr<Left, Op, Right>& expr)
+    {
+        fmpz res(expr);
+        DEBUG("expression template assignment [fmpz_swap]");
+        fmpz_swap(data, res.data);
+        return *this;
+    }
 #endif
 };
 
@@ -260,24 +286,24 @@ struct pluseval
 
 template<class Left, class Right>
 struct evaluator<binary_expr<Left, plus, Right> >
-    : public evalhelper<plus, pluseval>::eval_generic<Left, Right>
+    : evalhelper<plus, pluseval>::eval_generic<Left, Right>
 { };
 
 template<class Left>
 struct evaluator<binary_expr<Left, plus, fmpz> >
-    : public evalhelper<plus, pluseval>::eval_l<Left>
+    : evalhelper<plus, pluseval>::eval_l<Left>
 {
 };
 
 template<class Right>
 struct evaluator<binary_expr<fmpz, plus, Right> >
-    : public evalhelper<plus, pluseval>::eval_r<Right>
+    : evalhelper<plus, pluseval>::eval_r<Right>
 {
 };
 
 template<>
 struct evaluator<binary_expr<fmpz, plus, fmpz> >
-    : public evalhelper<plus, pluseval>::eval_2
+    : evalhelper<plus, pluseval>::eval_2
 { };
 
 struct timeseval
@@ -290,25 +316,100 @@ struct timeseval
 
 template<class Left, class Right>
 struct evaluator<binary_expr<Left, times, Right> >
-    : public evalhelper<times, timeseval>::eval_generic<Left, Right>
+    : evalhelper<times, timeseval>::eval_generic<Left, Right>
 { };
 
 template<class Left>
 struct evaluator<binary_expr<Left, times, fmpz> >
-    : public evalhelper<times, timeseval>::eval_l<Left>
+    : evalhelper<times, timeseval>::eval_l<Left>
 {
 };
 
 template<class Right>
 struct evaluator<binary_expr<fmpz, times, Right> >
-    : public evalhelper<times, timeseval>::eval_r<Right>
+    : evalhelper<times, timeseval>::eval_r<Right>
 {
 };
 
 template<>
 struct evaluator<binary_expr<fmpz, times, fmpz> >
-    : public evalhelper<times, timeseval>::eval_2
+    : evalhelper<times, timeseval>::eval_2
 { };
+
+template<class R>
+struct evaluator<binary_expr<binary_expr<fmpz, times, fmpz>, plus, R> >
+{
+    static const unsigned ntemporaries = evaluator<R>::ntemporaries;
+    typedef binary_expr<binary_expr<fmpz, times, fmpz>, plus, R> T;
+
+    template<unsigned N>
+    static void eval(fmpz& result, temporaries<N>& temps, const T& data)
+    {
+        evaluator<R>::eval(result, temps, data.right);
+        result.addmul(data.left.left, data.left.right);
+    }
+};
+
+template<class L>
+struct evaluator<binary_expr<L, plus, binary_expr<fmpz, times, fmpz> > >
+{
+    static const unsigned ntemporaries = evaluator<L>::ntemporaries;
+    typedef binary_expr<L, plus, binary_expr<fmpz, times, fmpz> > T;
+
+    template<unsigned N>
+    static void eval(fmpz& result, temporaries<N>& temps, const T& data)
+    {
+        evaluator<L>::eval(result, temps, data.left);
+        result.addmul(data.right.left, data.right.right);
+    }
+};
+
+template<>
+struct evaluator<binary_expr
+    <
+        binary_expr<fmpz, times, fmpz>,
+        plus,
+        binary_expr<fmpz, times, fmpz>
+    > >
+{
+    static const unsigned ntemporaries = 1;
+    typedef binary_expr<binary_expr<fmpz, times, fmpz>, plus, binary_expr<fmpz, times, fmpz> > T;
+
+    template<unsigned N>
+    static void eval(fmpz& result, temporaries<N>& temps, const T& data)
+    {
+        result.mul(data.left.left, data.left.right);
+        result.addmul(data.right.left, data.right.right);
+    }
+};
+
+template<>
+struct evaluator<binary_expr<fmpz, plus, binary_expr<fmpz, times, fmpz> > >
+{
+    static const unsigned ntemporaries = 0;
+
+    template<unsigned N>
+    static void eval(fmpz& result, temporaries<N>& temps,
+            const binary_expr<fmpz, plus, binary_expr<fmpz, times, fmpz> >& data)
+    {
+        result.mul(data.right.left, data.right.right);
+        result.add(result, data.left);
+    }
+};
+
+template<>
+struct evaluator<binary_expr<binary_expr<fmpz, times, fmpz>, plus, fmpz> >
+{
+    static const unsigned ntemporaries = 0;
+
+    template<unsigned N>
+    static void eval(fmpz& result, temporaries<N>& temps,
+            const binary_expr<binary_expr<fmpz, times, fmpz>, plus, fmpz>& data)
+    {
+        result.mul(data.left.left, data.left.right);
+        result.add(result, data.right);
+    }
+};
 
 
 // The actual evaluation happens here.

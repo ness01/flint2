@@ -16,10 +16,13 @@ main()
     flint::fmpz f = 9;
     std::cout << "Hello word" << std::endl;
     //flint::fmpz res = a + b*c;
+    //flint::fmpz res = 0;
+    //res = a + b*c;
     //flint::fmpz res = ((((a + b) + c) + d) + e) + f;
     //flint::fmpz res = a + (b + (c + (d + (e + f))));
     flint::fmpz res = a*b + c*d + e*f;
     //flint::fmpz res = a + b;
+    //res = a + (b + (c + (d + (e + f))));
     std::cout << res << std::endl;
     return 0;
 }
