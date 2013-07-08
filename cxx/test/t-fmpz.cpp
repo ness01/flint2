@@ -51,6 +51,7 @@ test_printing()
     tassert(oss.str() == "31\n37\n1f\n31");
 
     fmpzxx b(-15);
+    fmpzxx c(a + b);
     tassert((a + b).to_string() == "16");
 }
 

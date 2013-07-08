@@ -144,7 +144,7 @@ struct is_implemented : mp::not_<_is_convertible<rules::UNIMPLEMENTED, T> > { };
 template<> \
 struct name<totype, fromtype> \
 { \
-    static totype get(const fromtype& from) \
+    static totype get(traits::forwarding<fromtype>::type from) \
     { \
         return eval; \
     } \
@@ -155,7 +155,8 @@ struct name<totype, fromtype> \
 template<> \
 struct name<totype, fromtype> \
 { \
-    static void doit(totype& to, const fromtype& from) \
+    static void doit(traits::reference<totype>::type to, \
+            traits::forwarding<fromtype>::type from) \
     { \
         eval; \
     } \
@@ -167,19 +168,21 @@ struct name<totype, fromtype> \
 template<class T> \
 struct name<totype, T, typename mp::enable_if<cond >::type> \
 { \
-    static void doit(totype& to, const T& from) \
+    static void doit(traits::reference<totype>::type to, \
+            typename traits::forwarding<T>::type from) \
     { \
         eval; \
     } \
 };
 
 // Specialise the unary expression rule type->type.
-#define FLINT_DEFINE_UNARY_EXPR(name, type, eval) \
+#define FLINT_DEFINE_UNARY_EXPR(name, Type, eval) \
 template<> \
-struct unary_expression<operations::name, type> \
+struct unary_expression<operations::name, Type> \
 { \
-    typedef type return_t; \
-    static void doit(type& to, const type& from) \
+    typedef Type return_t; \
+    static void doit(traits::reference<Type>::type to, \
+           traits::forwarding<Type>::type from) \
     { \
         eval; \
     } \
@@ -190,19 +193,22 @@ template<class T> \
 struct unary_expression<typename mp::enable_if<cond, operations::name>::type, T> \
 { \
     typedef ret_type return_t; \
-    static void doit(ret_type& to, const T& from) \
+    static void doit(traits::reference<ret_type>::type to, \
+            typename traits::forwarding<T>::type from) \
     { \
         eval; \
     } \
 };
 
 // Specialise the binary expression rule (type, type) -> type
-#define FLINT_DEFINE_BINARY_EXPR(name, type, eval) \
+#define FLINT_DEFINE_BINARY_EXPR(name, Type, eval) \
 template<> \
-struct binary_expression<type, operations::name, type> \
+struct binary_expression<Type, operations::name, Type> \
 { \
-    typedef type return_t; \
-    static void doit(type& to, const type& e1, const type& e2) \
+    typedef Type return_t; \
+    typedef traits::forwarding<Type>::type fwd_t; \
+    static void doit(traits::reference<Type>::type to, \
+            fwd_t e1, fwd_t e2) \
     { \
         eval; \
     } \
@@ -216,7 +222,9 @@ struct commutative_binary_expression<Type, \
     typename mp::enable_if<cond, operations::name>::type, T> \
 { \
     typedef Type return_t; \
-    static void doit(Type& to, const Type& e1, const T& e2) \
+    static void doit(traits::reference<Type>::type to, \
+            traits::forwarding<Type>::type e1, \
+            typename traits::forwarding<T>::type e2) \
     { \
         eval; \
     } \
@@ -230,7 +238,9 @@ struct binary_expression<Type, \
     typename mp::enable_if<cond, operations::name>::type, T> \
 { \
     typedef Type return_t; \
-    static void doit(Type& to, const Type& e1, const T& e2) \
+    static void doit(traits::reference<Type>::type to, \
+            traits::forwarding<Type>::type e1, \
+            typename traits::forwarding<T>::type e2) \
     { \
         eval; \
     } \

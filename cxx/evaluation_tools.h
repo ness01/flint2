@@ -70,7 +70,8 @@ namespace tdetail {
 template<class T, class U>
 struct cmp_invert
 {
-    static int get(const T& t, const U& u)
+    static int get(typename traits::forwarding<T>::type t,
+            typename traits::forwarding<U>::type u)
     {
         return -rules::cmp<U, T>::get(u, t);
     }
@@ -97,7 +98,8 @@ struct equals_using_cmp_<T, U,
     typename mp::enable_if<
         traits::is_implemented<symmetric_cmp<T, U> > >::type>
 {
-    static bool get(const T& t, const U& u)
+    static bool get(typename traits::forwarding<T>::type t,
+            typename traits::forwarding<U>::type u)
     {
         return tools::symmetric_cmp<T, U>::get(t, u) == 0;
     }
@@ -116,7 +118,7 @@ template<class T>
 struct print_using_str_<T,
     typename mp::enable_if<traits::is_implemented<rules::to_string<T> > >::type>
 {
-    static void doit(const T& v, std::ostream& o)
+    static void doit(typename traits::forwarding<T>::type v, std::ostream& o)
     {
         int base = 10;
         std::ios_base::fmtflags ff = o.flags();
@@ -237,7 +239,7 @@ struct evaluation_helper<T,
     typename mp::enable_if<traits::is_lazy_expr<T> >::type>
 {
     typedef typename T::evaluated_t type;
-    static type get(const T& t) {return t.evaluate();}
+    static type get(typename traits::forwarding<T>::type t) {return t.evaluate();}
 
     typedef typename T::ev_traits_t::temp_rule_t::temporaries_t temporaries_t;
 };
@@ -511,14 +513,17 @@ struct ternary_helper<T, Left, Right1, Right2, disable_op,
             traits::is_immediate<right2_t>::val> inner;
     typedef typename inner::temporaries_t temporaries_t;
 
+    inner i;
+
     // evaluate left into res, rigth1 and right2 to arbitrary location,
-    // set toright1, toright2 to these locations
-    static void doit(const Left& left, const right1_t& right1,
-            const right2_t& right2, temporaries_t temps, T* res,
-            const T*& toright1, const T*& toright2)
-    {
-        inner::doit(left, right1, right2, temps, res, toright1, toright2);
-    }
+    ternary_helper(typename traits::forwarding<Left>::type left,
+            typename traits::forwarding<right1_t>::type right1,
+            typename traits::forwarding<right2_t>::type right2,
+            temporaries_t temps, T* res)
+        : i(left, right1, right2, temps, res) {}
+
+    typename traits::forwarding<T>::type left() {return i.left();}
+    typename traits::forwarding<T>::type right() {return i.right();}
 };
 
 namespace tdetail {
@@ -531,14 +536,20 @@ struct ternary_hhelper<T, Left, right1_t, right2_t, true, true>
     static const unsigned ntemps = FLINT_MAX(norig, 1);
     typedef typename mp::make_homogeneous_tuple<T*, ntemps>::type
         temporaries_t;
+    typedef typename traits::forwarding<T>::type fwd_t;
 
-    static void doit(const Left& left, const right1_t& right1,
-            const right2_t& right2, temporaries_t temps, T* res,
-            const T*& toright1, const T*& toright2)
+    fwd_t ref1;
+    fwd_t ref2;
+    fwd_t left() {return ref1;}
+    fwd_t right() {return ref2;}
+
+    ternary_hhelper(typename traits::forwarding<Left>::type left,
+            typename traits::forwarding<right1_t>::type right1,
+            typename traits::forwarding<right2_t>::type right2,
+            temporaries_t temps, T* res)
+        : ref1(right1), ref2(right2)
     {
         evl::doit(left._data(), mp::htuples::extract<norig>(temps), res);
-        toright1 = &right1;
-        toright2 = &right2;
     }
 };
 
@@ -561,16 +572,18 @@ struct ternary_hhelper_1imm<T, Left, right1_t, right2_t, true>
     static const unsigned t2 = evr::temporaries_t::len;
     // t1 >= t2
 
+    T* refp;
+
     template<class Temps>
-    static void doit(const Left& left, const right1_t& right1,
-            Temps temps, T* res,
-            const T*& toright1)
+    ternary_hhelper_1imm(typename traits::forwarding<Left>::type left,
+            typename traits::forwarding<right1_t>::type right1,
+            Temps temps, T* res)
     {
-        evl::doit(left._data(), mp::htuples::extract<t1>(temps), res);
         typename Temps::tail_t nores = mp::htuples::removeres(temps, res);
+        refp = nores.head;
+        evl::doit(left._data(), mp::htuples::extract<t1>(temps), res);
         evr::doit(right1._data(),
                 mp::htuples::extract<t2>(nores), nores.head);
-        toright1 = nores.head;
     }
 };
 // Case where t1 < t2
@@ -583,16 +596,18 @@ struct ternary_hhelper_1imm<T, Left, right1_t, right2_t, false>
     static const unsigned t2 = evr::temporaries_t::len;
     // t1 < t2
 
+    T* refp;
+
     template<class Temps>
-    static void doit(const Left& left, const right1_t& right1,
-            Temps temps, T* res,
-            const T*& toright1)
+    ternary_hhelper_1imm(typename traits::forwarding<Left>::type left,
+            typename traits::forwarding<right1_t>::type right1,
+            Temps temps, T* res)
     {
         typedef typename Temps::tail_t tail_t;
         tail_t nores = mp::htuples::removeres(temps, res);
+        refp = nores.head;
         evr::doit(right1._data(),
                 mp::htuples::extract<t2>(temps), nores.head);
-        toright1 = nores.head;
         evl::doit(left._data(),
                 mp::htuples::extract<t1>(tail_t(res, nores.tail)), res);
     }
@@ -611,13 +626,18 @@ struct ternary_hhelper<T, Left, right1_t, right2_t, false, true>
     typedef typename mp::make_homogeneous_tuple<T*, ntemps>::type
         temporaries_t;
 
-    static void doit(const Left& left, const right1_t& right1,
-            const right2_t& right2, temporaries_t temps, T* res,
-            const T*& toright1, const T*& toright2)
-    {
-        toright2 = &right2;
-        thh1::doit(left, right1, temps, res, toright1);
-    }
+    typedef typename traits::forwarding<T>::type fwd_t;
+    thh1 i;
+    fwd_t ref;
+
+    ternary_hhelper(typename traits::forwarding<Left>::type left,
+            typename traits::forwarding<right1_t>::type right1,
+            typename traits::forwarding<right2_t>::type right2,
+            temporaries_t temps, T* res)
+        : i(left, right1, temps, res), ref(right2) {}
+
+    fwd_t left() {return fwd_t(*i.refp);}
+    fwd_t right() {return ref;}
 };
 
 // Case where b is immediate.
@@ -626,13 +646,18 @@ struct ternary_hhelper<T, Left, right1_t, right2_t, true, false>
 {
     typedef ternary_hhelper<T, Left, right2_t, right1_t, false, true> thh;
     typedef typename thh::temporaries_t temporaries_t;
+    typedef typename traits::forwarding<T>::type fwd_t;
 
-    static void doit(const Left& left, const right1_t& right1,
-            const right2_t& right2, temporaries_t temps, T* res,
-            const T*& toright1, const T*& toright2)
-    {
-        thh::doit(left, right2, right1, temps, res, toright2, toright1);
-    }
+    thh i;
+
+    ternary_hhelper(typename traits::forwarding<Left>::type left,
+            typename traits::forwarding<right1_t>::type right1,
+            typename traits::forwarding<right2_t>::type right2,
+            temporaries_t temps, T* res)
+        : i(left, right2, right1, temps, res) {}
+
+    fwd_t left() {return i.right();}
+    fwd_t right() {return i.left();}
 };
 
 // Case where neither is immediate.
@@ -712,6 +737,7 @@ struct ternary_hhelper<T, Left, right1_t, right2_t, false, false>
                 const E3& e3, temporaries_t temps,
                 A1 a1, A2 a2, A3 a3)
         {
+            // TODO assert
         }
     };
 
@@ -739,9 +765,12 @@ struct ternary_hhelper<T, Left, right1_t, right2_t, false, false>
                 e1, e2, e3, temps, a1, a2, a3);
     }
 
-    static void doit(const Left& left, const right1_t& right1,
-            const right2_t& right2, temporaries_t temps, T* res,
-            const T*& toright1, const T*& toright2)
+    const T* toright1;
+    const T* toright2;
+    ternary_hhelper(typename traits::forwarding<Left>::type left,
+            typename traits::forwarding<right1_t>::type right1,
+            typename traits::forwarding<right2_t>::type right2,
+            temporaries_t temps, T* res)
     {
         // We re-order the temporaries in such a way that res is at the
         // very end. When evaluating things in the correct order, it is then
@@ -755,6 +784,10 @@ struct ternary_hhelper<T, Left, right1_t, right2_t, false, false>
         doit_sort(left, right1, right2, temps_reordered,
                 resaccess(res), toaccess(toright1), toaccess(toright2));
     }
+
+    typedef typename traits::forwarding<T>::type fwd_t;
+    fwd_t left() {return fwd_t(*toright1);}
+    fwd_t right() {return fwd_t(*toright2);}
 };
 } // tdetail
 } // tools

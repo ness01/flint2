@@ -42,6 +42,12 @@
 namespace flint {
 // "concrete" expression classes
 
+namespace detail {
+template<class T, class U> 
+struct fmpzxx_enable_implicit : mp::false_ { };
+template<class T> struct fmpzxx_traits;
+} // detail
+
 template<class Operation, class Data>
 class fmpzxx_expression
     : public expression<derived_wrapper<fmpzxx_expression>, Operation, Data>
@@ -49,7 +55,20 @@ class fmpzxx_expression
 public:
     fmpzxx_expression() {}
     template<class T>
-    explicit fmpzxx_expression(const T& t)
+    explicit fmpzxx_expression(const T& t,
+            typename mp::disable_if<detail::fmpzxx_enable_implicit<fmpzxx_expression, T> >::type* = 0)
+        : expression<derived_wrapper< ::flint::fmpzxx_expression>,
+              Operation, Data>(t) {}
+
+    template<class T>
+    fmpzxx_expression(const T& t,
+            typename mp::enable_if<detail::fmpzxx_enable_implicit<fmpzxx_expression, T> >::type* = 0)
+        : expression<derived_wrapper< ::flint::fmpzxx_expression>,
+              Operation, Data>(t) {}
+
+    template<class T>
+    fmpzxx_expression(T& t,
+            typename mp::enable_if<detail::fmpzxx_enable_implicit<fmpzxx_expression, T> >::type* = 0)
         : expression<derived_wrapper< ::flint::fmpzxx_expression>,
               Operation, Data>(t) {}
 
@@ -60,8 +79,11 @@ public:
         return *this;
     }
 
-    fmpz_t& _fmpz() {return this->_data().f;}
-    const fmpz_t& _fmpz() const {return this->_data().f;}
+    typename detail::fmpzxx_traits<fmpzxx_expression>::nonconst_rt
+        _fmpz() {return this->_data().f;}
+
+    typename detail::fmpzxx_traits<fmpzxx_expression>::const_rt
+    _fmpz() const {return this->_data().f;}
 
 protected:
     explicit fmpzxx_expression(const Data& d)
@@ -73,6 +95,45 @@ protected:
 };
 
 namespace detail {
+struct fmpz_data;
+struct fmpzref_data;
+struct fmpzcref_data;
+}
+
+typedef fmpzxx_expression<operations::immediate, detail::fmpz_data> fmpzxx;
+typedef fmpzxx_expression<operations::immediate, detail::fmpzref_data> fmpzxx_ref;
+typedef fmpzxx_expression<operations::immediate, detail::fmpzcref_data> fmpzxx_cref;
+
+namespace traits {
+template<> struct basetype<fmpzxx_ref> {typedef fmpzxx type;};
+template<> struct basetype<fmpzxx_cref> {typedef fmpzxx type;};
+template<> struct forwarding<fmpzxx> {typedef fmpzxx_cref type;};
+template<> struct reference<fmpzxx> {typedef fmpzxx_ref type;};
+template<> struct make_const<fmpzxx_ref> {typedef fmpzxx_cref type;};
+}
+
+namespace detail {
+template<> struct fmpzxx_enable_implicit<fmpzxx_ref, fmpzxx> : mp::true_ { };
+template<> struct fmpzxx_enable_implicit<fmpzxx_cref, fmpzxx> : mp::true_ { };
+template<> struct fmpzxx_enable_implicit<fmpzxx_cref, fmpzxx_ref> : mp::true_ { };
+// <fmpzxx, fmpzxx_cref> ?
+
+template<class T> struct fmpzxx_traits
+{
+    typedef fmpz_t& nonconst_rt;
+    typedef const fmpz_t& const_rt;
+};
+template<> struct fmpzxx_traits<fmpzxx_cref>
+{
+    typedef const fmpz* nonconst_rt;
+    typedef const fmpz* const_rt;
+};
+template<> struct fmpzxx_traits<fmpzxx_ref>
+{
+    typedef fmpz* nonconst_rt;
+    typedef const fmpz* const_rt;
+};
+
 struct fmpz_data
 {
     fmpz_t f;
@@ -104,16 +165,28 @@ struct fmpz_data
         fmpz_init(f);
         fmpz_set_si(f, t);
     }
+
+    void init(const fmpzxx_cref&);
 };
 
-struct fmpz_view_data
+struct fmpzref_data
 {
-    fmpz_t f;
-    fmpz_view_data(const fmpz_t& ft) {f[0] = ft[0];}
+    fmpz* f;
+    fmpzref_data(fmpzxx& r) {f = &r._fmpz()[0];}
 };
-} // detail
 
-typedef fmpzxx_expression<operations::immediate, detail::fmpz_data> fmpzxx;
+struct fmpzcref_data
+{
+    const fmpz* f;
+    fmpzcref_data(const fmpzxx& r) {f = r._fmpz();}
+    fmpzcref_data(fmpzxx_ref r) {f = r._fmpz();}
+};
+
+inline void fmpz_data::init(const fmpzxx_cref& r)
+{
+    fmpz_init_set(f, r._fmpz());
+}
+} // detail
 
 ///////////////////////////////////////////////////////////////////
 // HELPERS
@@ -155,7 +228,7 @@ struct assignment<fmpzxx, char[n]>
 template<>
 struct cmp<fmpzxx, fmpzxx>
 {
-    static int get(const fmpzxx& l, const fmpzxx& r)
+    static int get(fmpzxx_cref l, fmpzxx_cref r)
     {
         return fmpz_cmp(l._fmpz(), r._fmpz());
     }
@@ -165,7 +238,7 @@ template<class T>
 struct cmp<fmpzxx, T,
     typename mp::enable_if<traits::is_signed_integer<T> >::type>
 {
-    static int get(const fmpzxx& v, const T& t)
+    static int get(fmpzxx_cref v, const T& t)
     {
         return fmpz_cmp_si(v._fmpz(), t);
     }
@@ -175,7 +248,7 @@ template<class T>
 struct cmp<fmpzxx, T,
     typename mp::enable_if<traits::is_unsigned_integer<T> >::type>
 {
-    static int get(const fmpzxx& v, const T& t)
+    static int get(fmpzxx_cref v, const T& t)
     {
         return fmpz_cmp_ui(v._fmpz(), t);
     }
@@ -184,7 +257,7 @@ struct cmp<fmpzxx, T,
 template<>
 struct to_string<fmpzxx>
 {
-    static std::string get(const fmpzxx& v, int base)
+    static std::string get(fmpzxx_cref v, int base)
     {
         char* str = fmpz_get_str(0, base, v._fmpz());
         std::string res(str);
@@ -267,14 +340,12 @@ struct evaluation<Op,
 
     static void doit(const data_t& input, temporaries_t temps, return_t* res)
     {
-        const fmpzxx* left = 0;
-        const fmpzxx* right = 0;
-        th::doit(input.first(), input.second()._data().first(),
-                input.second()._data().second(), temps, res, right, left);
+        th t(input.first(), input.second()._data().first(),
+                input.second()._data().second(), temps, res);
         if(is_add)
-            fmpz_addmul(res->_fmpz(), left->_fmpz(), right->_fmpz());
+            fmpz_addmul(res->_fmpz(), t.left()._fmpz(), t.right()._fmpz());
         else
-            fmpz_submul(res->_fmpz(), left->_fmpz(), right->_fmpz());
+            fmpz_submul(res->_fmpz(), t.left()._fmpz(), t.right()._fmpz());
     }
 };
 
@@ -300,11 +371,9 @@ struct evaluation<operations::plus,
 
     static void doit(const data_t& input, temporaries_t temps, return_t* res)
     {
-        const fmpzxx* left = 0;
-        const fmpzxx* right = 0;
-        th::doit(input.second(), input.first()._data().first(),
-                input.first()._data().second(), temps, res, right, left);
-        fmpz_addmul(res->_fmpz(), left->_fmpz(), right->_fmpz());
+        th t(input.second(), input.first()._data().first(),
+                input.first()._data().second(), temps, res);
+        fmpz_addmul(res->_fmpz(), t.left()._fmpz(), t.right()._fmpz());
     }
 };
 } // rules
@@ -346,7 +415,7 @@ struct enable_ternary_assign
 // a += b*c
 template<class Right1, class Right2>
 inline typename detail::enable_ternary_assign<Right1, Right2>::type
-operator+=(fmpzxx& left, const fmpzxx_expression<operations::times,
+operator+=(fmpzxx_ref left, const fmpzxx_expression<operations::times,
         tuple<Right1, tuple<Right2, empty_tuple> > >& other)
 {
     detail::ternary_assign_helper<Right1, Right2> tah(
@@ -359,7 +428,7 @@ operator+=(fmpzxx& left, const fmpzxx_expression<operations::times,
 // a -= b*c
 template<class Right1, class Right2>
 inline typename detail::enable_ternary_assign<Right1, Right2>::type
-operator-=(fmpzxx& left, const fmpzxx_expression<operations::times,
+operator-=(fmpzxx_ref left, const fmpzxx_expression<operations::times,
         tuple<Right1, tuple<Right2, empty_tuple> > >& other)
 {
     detail::ternary_assign_helper<Right1, Right2> tah(
@@ -412,7 +481,7 @@ struct binary_expression<
     T2>
 {
     typedef fmpzxx return_t;
-    static void doit(fmpzxx& to, const T1& t1, const T2& t2)
+    static void doit(fmpzxx_ref to, const T1& t1, const T2& t2)
     {
         fmpz_bin_uiui(to._fmpz(), t1, t2);
     }

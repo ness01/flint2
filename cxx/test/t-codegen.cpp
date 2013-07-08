@@ -533,7 +533,7 @@ main(int argc, char** argv)
     program = argv[0];
     try
     {
-        test_tuple();
+        //test_tuple();
         test_fmpzxx();
     }
     catch(skippable_exception e)
