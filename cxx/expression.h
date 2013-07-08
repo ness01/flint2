@@ -51,8 +51,9 @@ struct evaluation_traits
         Operation, Data, true>::type temp_rule_t;
     typedef typename rule_t::return_t evaluation_return_t;
     typedef evaluation_return_t evaluated_t;
+    typedef typename traits::reference<evaluated_t>::type evalref_t;
 
-    static evaluation_return_t evaluate(const derived_t& from)
+    static evaluated_t evaluate(const derived_t& from)
     {
         evaluated_t res = 
             rules::instantiate_temporaries<derived_t, evaluated_t>::get(from);
@@ -60,7 +61,7 @@ struct evaluation_traits
         return res;
     }
 
-    static void evaluate_into(evaluation_return_t& to, const derived_t& from)
+    static void evaluate_into(evalref_t to, const derived_t& from)
     {
         typedef mp::back_tuple<typename rule_t::temporaries_t> back_t;
         typename back_t::type temps_backing =
@@ -90,15 +91,17 @@ template<class Expr, class Data>
 struct evaluation_traits<operations::immediate, Expr, Data>
 {
     typedef typename Expr::derived_t derived_t;
-    typedef typename Expr::derived_t evaluated_t;
-    typedef evaluated_t& evaluation_return_t;
+    typedef typename traits::basetype<derived_t>::type evaluated_t;
+    typedef typename traits::reference<evaluated_t>::type evalref_t;
+    typedef evalref_t evaluation_return_t;
 
-    static evaluated_t& evaluate(derived_t& d) {return d;}
-    static const evaluated_t& evaluate(const derived_t& d) {return d;}
+    static evaluation_return_t evaluate(derived_t& d) {return d;}
+    static typename traits::forwarding<evaluated_t>::type
+        evaluate(const derived_t& d) {return d;}
 
-    static void evaluate_into(derived_t& to, const derived_t& from)
+    static void evaluate_into(evalref_t to, const derived_t& from)
     {
-        rules::assignment<derived_t, derived_t>::doit(to, from);
+        rules::assignment<evaluated_t, evaluated_t>::doit(to, from);
     }
 
     static void evaluate_into_fresh(derived_t& to, const derived_t& from)
@@ -123,6 +126,7 @@ protected:
 public:
     typedef detail::evaluation_traits<Operation, expression, Data> ev_traits_t;
     typedef typename Derived::template type<Operation, Data>::result derived_t;
+    typedef typename traits::basetype<derived_t>::type bderived_t;
     typedef typename ev_traits_t::evaluated_t evaluated_t;
     typedef typename ev_traits_t::evaluation_return_t evaluation_return_t;
     typedef Data data_t;
@@ -139,6 +143,12 @@ private:
     // conditionally enable constructors in C++98
     template<class T>
     static data_t get_data(const T& t,
+        typename mp::disable_if<traits::is_lazy_expr<T> >::type* = 0)
+    {
+        return data_t(t);
+    }
+    template<class T>
+    static data_t get_data(T& t,
         typename mp::disable_if<traits::is_lazy_expr<T> >::type* = 0)
     {
         return data_t(t);
@@ -165,7 +175,13 @@ private:
 
 public:
     template<class T>
-    explicit expression(const T& t)
+    explicit expression(const T& t,
+        typename mp::disable_if<mp::equal_types<T, derived_t> >::type* = 0)
+        : data(get_data(t)) {}
+
+    template<class T>
+    explicit expression(T& t,
+        typename mp::disable_if<mp::equal_types<T, derived_t> >::type* = 0)
         : data(get_data(t)) {}
 
     template<class T, class U>
@@ -181,9 +197,9 @@ public:
     }
 
     // See rules::instantiate_temporaries for explanation.
-    derived_t create_temporary() const
+    bderived_t create_temporary() const
     {
-        return derived_t();
+        return bderived_t();
     }
 
     Data& _data() {return data;}
@@ -221,7 +237,7 @@ public:
     void set(const T& t,
             typename mp::disable_if<traits::is_expression<T> >::type* = 0)
     {
-        rules::assignment<derived_t, T>::doit(downcast(), t);
+        rules::assignment<bderived_t, T>::doit(downcast(), t);
     }
 
     template<class T>
@@ -234,7 +250,8 @@ public:
     bool equals(const T& t,
             typename mp::disable_if<traits::is_lazy_expr<T> >::type* = 0) const
     {
-        return tools::equals_using_cmp<evaluated_t, T>::get(evaluate(), t);
+        return tools::equals_using_cmp<evaluated_t,
+            typename traits::basetype<T>::type>::get(evaluate(), t);
     }
 
     template<class Op, class NData>
@@ -270,39 +287,43 @@ struct storage_traits
           Expr
         > { };
 
-template<class Expr1, class Op, class Expr2>
+template<class Expr1_, class Op, class Expr2_>
 struct binary_op_helper
 {
+    typedef typename traits::basetype<Expr1_>::type Expr1;
+    typedef typename traits::basetype<Expr2_>::type Expr2;
     typedef mp::make_tuple<
         typename storage_traits<Expr1>::type,
         typename storage_traits<Expr2>::type
       > maker;
     typedef typename maker::type type;
-    typedef mp::find_evaluation<Op, type, true> ev_t;
-    typedef typename ev_t::type::return_t Expr;
+    typedef typename mp::find_evaluation<Op, type, true>::type ev_t;
+    typedef typename ev_t::return_t Expr;
     typedef typename Expr::template make_helper<Op, type> make_helper;
     typedef typename make_helper::type return_t;
 
     typedef mp::enable_if<traits::is_implemented<ev_t>, return_t> enable;
 
-    static return_t make(const Expr1& left, const Expr2& right)
+    static return_t make(typename traits::forwarding<Expr1>::type left,
+        typename traits::forwarding<Expr2>::type right)
     {
         return make_helper::make(maker::make(left, right));
     }
 };
 
-template<class Op, class Expr>
+template<class Op, class Expr_>
 struct unary_op_helper
 {
+    typedef typename traits::basetype<Expr_>::type Expr;
     typedef tuple<typename storage_traits<Expr>::type, empty_tuple> type;
-    typedef mp::find_evaluation<Op, type, true> ev_t;
-    typedef typename ev_t::type::return_t Rexpr;
+    typedef typename mp::find_evaluation<Op, type, true>::type ev_t;
+    typedef typename ev_t::return_t Rexpr;
     typedef typename Rexpr::template make_helper<Op, type> make_helper;
     typedef typename make_helper::type return_t;
 
     typedef mp::enable_if<traits::is_implemented<ev_t>, return_t> enable;
 
-    static return_t make(const Expr& e)
+    static return_t make(typename traits::forwarding<Expr>::type e)
     {
         return make_helper::make(type(e, empty_tuple()));
     }

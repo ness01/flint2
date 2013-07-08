@@ -54,8 +54,10 @@ private:
     typedef traits::is_implemented<r1> i1;
     typedef traits::is_implemented<r0> i0;
 
+    struct UNIMPLEMENTED : rules::UNIMPLEMENTED { };
+
 public:
-    typedef typename mp::select<rules::UNIMPLEMENTED, // TODO
+    typedef typename mp::select<UNIMPLEMENTED, // TODO
         mp::and_v<i2, min_prio <= 2>, r2,
         mp::and_v<i1, min_prio <= 1>, r1,
         mp::and_v<i0, min_prio <= 0>, r0
@@ -141,14 +143,16 @@ struct find_subexpr_helper
 {
     typedef find_subexpr_helper2<T, typename Expr::data_t> fsh;
     static const bool val = fsh::val;
-    static const T& get(const Expr& e) {return fsh::get(e._data());}
+    static typename traits::forwarding<T>::type get(
+            const Expr& e) {return fsh::get(e._data());}
 };
 
 template<class T>
 struct find_subexpr_helper<T, T>
 {
     static const bool val = true;
-    static const T& get(const T& t) {return t;}
+    typedef typename traits::forwarding<T>::type fwd_t;
+    static fwd_t get(fwd_t t) {return t;}
 };
 
 template<class T, class Expr>
@@ -164,7 +168,8 @@ struct find_subexpr_helper2
 {
     typedef find_subexpr_helper2<T, typename Data::tail_t> fsh;
     static const bool val = fsh::val;
-    static const T& get(const Data& d) {return fsh::get(d.tail);}
+    static typename traits::forwarding<T>::type get(
+            const Data& d) {return fsh::get(d.tail);}
 };
 
 template<class T, class Head, class Tail>
@@ -175,7 +180,8 @@ struct find_subexpr_helper2<T, tuple<Head, Tail>,
     static const bool val = true;
     typedef typename traits::basetype<Head>::type head_t;
     typedef find_subexpr_helper<T, head_t> fsh;
-    static const T& get(const tuple<Head, Tail>& d) {return fsh::get(d.head);}
+    static typename traits::forwarding<T>::type get(
+            const tuple<Head, Tail>& d) {return fsh::get(d.head);}
 };
 
 template<class T>
@@ -186,7 +192,7 @@ struct find_subexpr_helper2<T, empty_tuple>
 } // tdetail
 
 template<class T, class Expr>
-inline const T& find_subexpr(const Expr& e)
+inline typename traits::forwarding<T>::type find_subexpr(const Expr& e)
 {
     return tdetail::find_subexpr_helper<T, Expr>::get(e);
 }
@@ -221,7 +227,7 @@ struct evaluation_helper
 {
     typedef typename traits::basetype<T>::type type;
     typedef typename traits::forwarding<type>::type ftype;
-    static ftype get(const type& t) {return t;}
+    static ftype get(ftype t) {return t;}
 
     typedef empty_tuple temporaries_t;
 };

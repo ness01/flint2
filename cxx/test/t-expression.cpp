@@ -257,6 +257,49 @@ test_temporaries()
     tassert(count_temporaries(T2 + T3) == 3);
 }
 
+void
+test_references()
+{
+    mylong a(4);
+    mylong_ref ar(a);
+    mylong_cref acr(a);
+    tassert(a == ar);
+    tassert(a == acr);
+    tassert(ar == acr);
+    tassert(ar == 4l && acr == 4l);
+
+    ar = 5l;
+    tassert(a == 5l && acr == 5l && ar == 5l);
+
+    mylong b(6);
+    ar = b;
+    tassert(a == b);
+
+    mylong_cref bcr(b);
+    b = 7l;
+    ar = bcr;
+    tassert(a == b);
+
+    a = 4l;
+    b = 5l;
+    tassert(a + bcr == 9l);
+    tassert(ar + bcr == 9l);
+    a = acr + b;
+    tassert(a == 9l);
+    ar = acr + bcr;
+    tassert(a == 14l);
+
+    a = 4l;
+    tassert((a + a) + bcr == 13l);
+    tassert((acr + acr) + b == 13l);
+    tassert(((a + bcr) + acr + (ar + bcr)) + ((a + a) + (bcr + bcr)) == 40l);
+    a = ((a + bcr) + acr + (ar + bcr)) + ((a + a) + (bcr + bcr));
+    tassert(a == 40l);
+    a = 4l;
+    ar = ((a + bcr) + acr + (ar + bcr)) + ((a + a) + (bcr + bcr));
+    tassert(a == 40l);
+}
+
 int
 main()
 {
@@ -273,6 +316,7 @@ main()
     test_assignment_arith();
     test_tools();
     test_temporaries();
+    test_references();
 
     std::cout << "PASS" << std::endl;
 

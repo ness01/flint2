@@ -80,6 +80,8 @@ struct data
 
 typedef my_expression<operations::immediate, data> myint;
 
+template<class T, class U> struct enableimplicit : mp::false_ { };
+
 template<class Operation, class Data>
 class my_expression2
     : public expression<derived_wrapper<my_expression2>, Operation, Data>
@@ -93,15 +95,27 @@ public:
               Operation, Data>(t) {}
 
     template<class T>
+    my_expression2(const T& t,
+            typename mp::enable_if<enableimplicit<my_expression2, T> >::type* = 0)
+        : expression<derived_wrapper< ::flint::my_expression2>,
+              Operation, Data>(t) {}
+
+    template<class T>
+    my_expression2(T& t,
+            typename mp::enable_if<enableimplicit<my_expression2, T> >::type* = 0)
+        : expression<derived_wrapper< ::flint::my_expression2>,
+              Operation, Data>(t) {}
+
+    template<class T>
     my_expression2& operator=(const T& t)
     {
         this->set(t);
         return *this;
     }
 
-    my_expression2 create_temporary() const
+    typename traits::basetype<my_expression2>::type create_temporary() const
     {
-        return my_expression2(0l);
+        return typename traits::basetype<my_expression2>::type(0l);
     }
 
 protected:
@@ -112,14 +126,53 @@ protected:
     template<class D, class O, class Da>
     friend class flint::expression;
 };
+
+struct longref_data;
+struct longcref_data;
+struct long_data;
+typedef my_expression2<operations::immediate, long_data> mylong;
+typedef my_expression2<operations::immediate, longref_data> mylong_ref;
+typedef my_expression2<operations::immediate, longcref_data> mylong_cref;
+
 struct long_data
 {
     long payload;
     // no default constructor
     long_data(long d) : payload(d) {}
     long_data(const myint& m) : payload(m._data().payload) {}
+    long_data(const mylong_cref&);
 };
-typedef my_expression2<operations::immediate, long_data> mylong;
+
+namespace traits {
+template<> struct basetype<mylong_ref> {typedef mylong type;};
+template<> struct basetype<mylong_cref> {typedef mylong type;};
+template<> struct forwarding<mylong> {typedef mylong_cref type;};
+template<> struct reference<mylong> {typedef mylong_ref type;};
+template<> struct make_const<mylong_ref> {typedef mylong_cref type;};
+}
+
+template<> struct enableimplicit<mylong_ref, mylong> : mp::true_ { };
+template<> struct enableimplicit<mylong_cref, mylong> : mp::true_ { };
+template<> struct enableimplicit<mylong_cref, mylong_ref> : mp::true_ { };
+
+//template<> struct enableimplicit<mylong, mylong_ref> : mp::true_ { };
+//template<> struct enableimplicit<mylong, mylong_cref> : mp::true_ { };
+
+struct longref_data
+{
+    long_data& ldr;
+    longref_data(mylong& l) : ldr(l._data()) {}
+};
+
+struct longcref_data
+{
+    const long_data& ldr;
+    longcref_data(const mylong& l) : ldr(l._data()) {}
+    longcref_data(mylong_ref r) : ldr(r._data().ldr) {}
+};
+
+inline long_data::long_data(const mylong_cref& mlcr)
+    : payload(mlcr._data().ldr.payload) {}
 
 namespace rules {
 
@@ -257,20 +310,38 @@ struct unary_expression<operations::negate, myint>
 /////////////////////////////////////////////////////////////////////////////
 
 template<>
+struct assignment<mylong, mylong>
+{
+    static void doit(mylong_ref to, mylong_cref from)
+    {
+        to._data().ldr.payload = from._data().ldr.payload;
+    }
+};
+
+template<>
+struct assignment<mylong, long>
+{
+    static void doit(mylong_ref to, long from)
+    {
+        to._data().ldr.payload = from;
+    }
+};
+
+template<>
 struct equals<mylong, mylong>
 {
-    static bool get(const mylong& i1, const mylong& i2)
+    static bool get(mylong_cref i1, mylong_cref i2)
     {
-        return i1._data().payload == i2._data().payload;
+        return i1._data().ldr.payload == i2._data().ldr.payload;
     }
 };
 
 template<>
 struct equals<mylong, long>
 {
-    static bool get(const mylong& i1, long i2)
+    static bool get(mylong_cref i1, long i2)
     {
-        return i1._data().payload == i2;
+        return i1._data().ldr.payload == i2;
     }
 };
 
@@ -279,7 +350,7 @@ template<bool c, class Op, class Data>
 struct evaluation<
     my_expression<
         operations::plus,
-        make_tuple<const mylong&, const mylong&>::type>,
+        make_tuple<mylong_cref, mylong_cref>::type>,
     Op, Data,
     c, 0>
 {
@@ -287,7 +358,7 @@ struct evaluation<
     typedef empty_tuple temporaries_t;
     typedef my_expression<
         operations::plus,
-        make_tuple<const mylong&, const mylong&>::type> expr_t;
+        make_tuple<mylong_cref, mylong_cref>::type> expr_t;
     static void doit(const expr_t& input, temporaries_t temps, return_t* output)
     {
         output->_data().payload = input._data().first()._data().payload
@@ -300,9 +371,9 @@ template<>
 struct commutative_binary_expression<mylong, operations::plus, mylong>
 {
     typedef mylong return_t;
-    static void doit(mylong& to, const mylong& a1, const mylong& a2)
+    static void doit(mylong_ref to, mylong_cref a1, mylong_cref a2)
     {
-        to._data().payload = a1._data().payload + a2._data().payload;
+        to._data().ldr.payload = a1._data().ldr.payload + a2._data().ldr.payload;
     }
 };
 
@@ -310,9 +381,9 @@ template<>
 struct commutative_binary_expression<myint, operations::plus, mylong>
 {
     typedef mylong return_t;
-    static void doit(mylong& to, const myint& a1, const mylong& a2)
+    static void doit(mylong_ref to, const myint& a1, mylong_cref a2)
     {
-        to._data().payload = a1._data().payload + a2._data().payload;
+        to._data().ldr.payload = a1._data().payload + a2._data().ldr.payload;
     }
 };
 } // rules
