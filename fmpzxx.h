@@ -134,9 +134,37 @@ typedef fmpzxx_expression<operations::immediate,
 typedef fmpzxx_expression<operations::immediate,
             flint_classes::srcref_data<fmpzxx, fmpzxx_ref, fmpz> > fmpzxx_srcref;
 
+namespace traits {
+template<class T> struct is_fmpzxx : mp::or_<
+     traits::is_T_expr<T, fmpzxx>,
+     flint_classes::is_source<fmpzxx, T> > { };
+
+template<class T, class Char>
+struct is_arrayptr : mp::false_ { };
+template<class Char>
+struct is_arrayptr<Char*, Char> : mp::true_ { };
+template<class Char>
+struct is_arrayptr<const Char*, Char> : mp::true_ { };
+template<unsigned n, class Char>
+struct is_arrayptr<Char[n], Char> : mp::true_ { };
+template<unsigned n, class Char>
+struct is_arrayptr<const Char[n], Char> : mp::true_ { };
+} // traits
+
 namespace detail {
 struct fmpz_data
 {
+    template<class T>
+    struct can_construct_bt : mp::or_<
+        traits::is_arrayptr<T, char>,
+        traits::is_fmpzxx<T>,
+        traits::is_integer<T> > { };
+
+    template<class T> struct can_construct_from
+        : can_construct_bt<typename traits::basetype<T>::type> { };
+
+    template<class T, class U> struct can_construct_from2 : mp::false_ { };
+
     typedef fmpz_t& data_ref_t;
     typedef const fmpz_t& data_srcref_t;
 
@@ -181,11 +209,6 @@ struct fmpz_data
 ///////////////////////////////////////////////////////////////////
 // HELPERS
 ///////////////////////////////////////////////////////////////////
-namespace traits {
-template<class T> struct is_fmpzxx : mp::or_<
-     traits::is_T_expr<T, fmpzxx>,
-     flint_classes::is_source<fmpzxx, T> > { };
-} // traits
 namespace mp {
 template<class Out, class T1, class T2 = void, class T3 = void>
 struct enable_all_fmpzxx

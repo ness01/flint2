@@ -102,14 +102,20 @@ public:
     FLINTXX_DEFINE_C_REF(padicxx_expression, padic_struct, _padic)
 
 public:
+    static const bool is_immediate =
+        mp::equal_types<Operation, operations::immediate>::val;
+#define ASSIMM \
+    FLINTXX_STATIC_ASSERT(is_immediate, "method only works on immediates")
     // These only make sense with immediates
-    const padicxx_ctx& get_ctx() const {return this->_data().ctx;}
-    fmpzxx_ref unit() {return fmpzxx_ref::make(padic_unit(_padic()));}
-    fmpzxx_srcref unit() const {return fmpzxx_srcref::make(padic_unit(_padic()));}
-    slong val() const {return padic_val(_padic());}
-    slong _prec() const {return padic_prec(_padic());}
-    padic_ctx_t& _ctx() const {return get_ctx()._ctx();}
+    const padicxx_ctx& get_ctx() const {ASSIMM;return this->_data().ctx;}
+    fmpzxx_ref unit() {ASSIMM;return fmpzxx_ref::make(padic_unit(_padic()));}
+    fmpzxx_srcref unit() const
+        {ASSIMM;return fmpzxx_srcref::make(padic_unit(_padic()));}
+    slong val() const {ASSIMM;return padic_val(_padic());}
+    slong _prec() const {ASSIMM;return padic_prec(_padic());}
+    padic_ctx_t& _ctx() const {ASSIMM;return get_ctx()._ctx();}
     // TODO reduce? canonicalise?
+#undef ASSIMM
 
     // Compute the maximal precision of all subexpressions
     slong prec() const

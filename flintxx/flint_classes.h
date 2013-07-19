@@ -35,9 +35,21 @@
 
 namespace flint {
 namespace flint_classes {
+template<class Compare, class Ref>
+struct is_ref;
+template<class Compare, class Ref>
+struct is_srcref;
+
 template<class Wrapped, class Inner>
 struct ref_data
 {
+    template<class T>
+    struct can_construct_from : mp::or_<
+        is_ref<Wrapped, typename traits::basetype<T>::type>,
+        mp::equal_types<T, Wrapped&> > { };
+
+    template<class T, class U> struct can_construct_from2 : mp::false_ { };
+
     typedef void IS_REF_OR_CREF;
     typedef Wrapped wrapped_t;
 
@@ -57,6 +69,17 @@ private:
 template<class Wrapped, class Ref, class Inner>
 struct srcref_data
 {
+    template<class T>
+    struct can_construct_from_bt : mp::or_<
+        mp::equal_types<T, Wrapped>,
+        is_ref<Wrapped, T>,
+        is_srcref<Wrapped, T> > { };
+    template<class T>
+    struct can_construct_from
+        : can_construct_from_bt<typename traits::basetype<T>::type> { };
+
+    template<class T, class U> struct can_construct_from2 : mp::false_ { };
+
     typedef void IS_REF_OR_CREF;
     typedef Wrapped wrapped_t;
 
@@ -203,6 +226,19 @@ struct enable_ternary_assign
     : mp::enable_if<mp::and_<
           traits::is_T_expr<typename traits::basetype<Right1>::type, T>,
           traits::is_T_expr<typename traits::basetype<Right2>::type, T> >, T&> { };
+
+template<class Data, class T, class Enable = void>
+struct enable_construct : mp::true_ { };
+template<class Data, class T>
+struct enable_construct<Data, T,
+    typename mp::enable<typename Data::template can_construct_from<T> >::type>
+    : Data::template can_construct_from<T> { };
+template<class Data, class T, class U, class Enable = void>
+struct enable_construct2 : mp::true_ { };
+template<class Data, class T, class U>
+struct enable_construct2<Data, T, U,
+    typename mp::enable<typename Data::template can_construct_from2<T, U> >::type>
+    : Data::template can_construct_from2<T, U> { };
 } // flint_classes
 
 namespace traits {
@@ -218,13 +254,16 @@ struct can_evaluate_into<T, U,
 } // flint
 
 #define FLINTXX_DEFINE_BASICS(name)                                           \
-public:                                                                       \
-    typedef void IS_FLINT_CLASS;                                              \
-    typedef typename base_t::evaluated_t evaluated_t;                         \
-                                                                              \
+private:                                                                      \
     template<class T>                                                         \
     struct doimplicit                                                         \
         : flint_classes::enableimplicit<name, T> { };                         \
+    template<class T>                                                         \
+    struct isdata : mp::equal_types<T, Data> { };                             \
+                                                                              \
+public:                                                                       \
+    typedef void IS_FLINT_CLASS;                                              \
+    typedef typename base_t::evaluated_t evaluated_t;                         \
                                                                               \
     template<class T>                                                         \
     name& operator=(const T& t)                                               \
@@ -234,34 +273,51 @@ public:                                                                       \
     }                                                                         \
                                                                               \
 protected:                                                                    \
-    explicit name(const Data& d) : base_t(d) {}                               \
+    template<class D>                                                         \
+    explicit name(const D& d,                                                 \
+            typename mp::enable_if<isdata<D> >::type* =  0)                   \
+        : base_t(d) {}                                                        \
                                                                               \
     template<class D, class O, class Da>                                      \
     friend class expression;
 
-#define FLINTXX_DEFINE_CTORS(name)                                           \
+#define FLINTXX_DEFINE_CTORS(name)                                            \
+private:                                                                      \
+    template<class T>                                                         \
+    struct enablec1 : flint_classes::enable_construct<Data, T> { };           \
+    template<class T, class U>                                                \
+    struct enablec2 : flint_classes::enable_construct2<Data, T, U> { };       \
+                                                                              \
 public:                                                                       \
     name() : base_t() {}                                                      \
     template<class T>                                                         \
     explicit name(const T& t,                                                 \
-            typename mp::disable_if<doimplicit<T> >::type* = 0)               \
+            typename mp::disable_if<doimplicit<T> >::type* = 0,               \
+            typename mp::disable_if<isdata<T> >::type* = 0,                   \
+            typename mp::enable_if<enablec1<const T&> >::type* = 0)           \
         : base_t(t) {}                                                        \
     template<class T>                                                         \
     explicit name(T& t,                                                       \
-            typename mp::disable_if<doimplicit<T> >::type* = 0)               \
+            typename mp::disable_if<doimplicit<T> >::type* = 0,               \
+            typename mp::disable_if<isdata<T> >::type* = 0,                   \
+            typename mp::enable_if<enablec1<T&> >::type* = 0)                 \
         : base_t(t) {}                                                        \
     template<class T>                                                         \
     name(const T& t,                                                          \
-            typename mp::enable_if<doimplicit<T> >::type* = 0)                \
+            typename mp::enable_if<doimplicit<T> >::type* = 0,                \
+            typename mp::enable_if<enablec1<const T&> >::type* = 0)           \
         : base_t(t) {}                                                        \
     template<class T>                                                         \
     name(T& t,                                                                \
-            typename mp::enable_if<doimplicit<T> >::type* = 0)                \
+            typename mp::enable_if<doimplicit<T> >::type* = 0,                \
+            typename mp::enable_if<enablec1<T&> >::type* = 0)                 \
         : base_t(t) {}                                                        \
     template<class T, class U>                                                \
-    name(const T& t, const U& u) : base_t(t, u) {}
+    name(const T& t, const U& u,                                              \
+            typename mp::enable_if<enablec2<T, U> >::type* = 0)               \
+        : base_t(t, u) {}
 
-#define FLINTXX_DEFINE_C_REF(name, ctype, accessname)                          \
+#define FLINTXX_DEFINE_C_REF(name, ctype, accessname)                         \
 public:                                                                       \
     typedef ctype c_base_t;                                                   \
     typedef flint_classes::maybe_data_ref<name> wrapped_traits;               \

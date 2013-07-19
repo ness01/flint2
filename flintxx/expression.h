@@ -250,14 +250,19 @@ public:
             typename mp::disable_if<traits::can_evaluate_into<
                 derived_t, typename T::evaluated_t> >::type* = 0)
     {
-        rules::assignment<derived_t, typename T::evaluated_t>::doit(
-            downcast(), t.evaluate());
+        typedef rules::assignment<derived_t, typename T::evaluated_t> rule_t;
+        FLINTXX_STATIC_ASSERT(traits::is_implemented<rule_t>::val,
+            "no rule to assign expression T to derived_t (after evaluating)");
+        rule_t::doit(downcast(), t.evaluate());
     }
     template<class T>
     void set(const T& t,
             typename mp::disable_if<traits::is_expression<T> >::type* = 0)
     {
-        rules::assignment<derived_t, T>::doit(downcast(), t);
+        typedef rules::assignment<derived_t, T> rule_t;
+        FLINTXX_STATIC_ASSERT(traits::is_implemented<rule_t>::val,
+            "no rule to assign non-expression T to derived_t");
+        rule_t::doit(downcast(), t);
     }
 
     template<class T>

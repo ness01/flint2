@@ -113,6 +113,8 @@ struct enable_if_v
 template<class U>
 struct enable_if_v<false, U> { };
 
+template<class T> struct enable {typedef void type;};
+
 // Conditional template enabling.
 //
 // These two helpers (enable_if and disable_if) can be used wherever the
@@ -132,6 +134,25 @@ struct enable_if : public enable_if_v<T::val, U> { };
 template<class T, class U = void>
 struct disable_if : public enable_if<not_<T>, U> { };
 } // mp
+
+namespace detail {
+template<bool x> struct STATIC_ASSERT_FAILED { };
+template<> struct STATIC_ASSERT_FAILED<false>;
+template<int x> struct static_assert_test { };
+} // detail
 } // flint
+
+#ifndef HAVE_STATIC_ASSERT
+#define HAVE_STATIC_ASSERT (__cplusplus >= 201103L)
+#endif
+
+#if HAVE_STATIC_ASSERT
+#define FLINTXX_STATIC_ASSERT(cond, msg) \
+static_assert(cond, msg)
+#else
+// modelled on boost
+#define FLINTXX_STATIC_ASSERT(cond, msg) \
+typedef ::flint::detail::static_assert_test<sizeof(::flint::detail::STATIC_ASSERT_FAILED<cond>)> static_assert_failure_##__LINE__
+#endif
 
 #endif

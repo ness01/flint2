@@ -452,6 +452,10 @@ test_references()
     fmpzxx_srcref acr2 = fmpzxx_srcref::make(acr._fmpz());
     a = 7;
     tassert(ar2 == 7 && acr2 == 7);
+
+    // test copy construction
+    fmpzxx_ref ar3(ar);
+    fmpzxx_srcref acr3(acr);
 }
 
 void
