@@ -307,6 +307,13 @@ void fmpq_poly_get_slice(fmpq_poly_t rop,
     Returns the slice with coefficients from $x^i$ (including) to 
     $x^j$ (excluding).
 
+void fmpq_poly_reverse(fmpq_poly_t res, const fmpq_poly_t poly, slong n)
+
+    This function considers the polynomial \code{poly} to be of length $n$, 
+    notionally truncating and zero padding if required, and reverses 
+    the result.  Since the function normalises its result \code{res} may be 
+    of length less than $n$.
+
 *******************************************************************************
 
     Getting and setting coefficients
@@ -1470,20 +1477,11 @@ void fmpq_poly_make_monic(fmpq_poly_t res, const fmpq_poly_t poly)
 
 *******************************************************************************
 
-int _fmpq_poly_is_squarefree(const fmpz * poly, const fmpz_t den, slong len)
-
-    Returns whether the polynomial \code{(poly, den, len)} is square-free.
-
 int fmpq_poly_is_squarefree(const fmpq_poly_t poly)
 
     Returns whether the polynomial \code{poly} is square-free.  A non-zero 
     polynomial is defined to be square-free if it has no non-unit square 
     factors.  We also define the zero polynomial to be square-free.
-    
-    Returns~$1$ if the length of \code{poly} is at most~$2$.  Returns whether 
-    the discriminant is zero for quadratic polynomials.  Otherwise, returns 
-    whether the greatest common divisor of \code{poly} and its derivative has 
-    length~$1$.
 
 *******************************************************************************
 
