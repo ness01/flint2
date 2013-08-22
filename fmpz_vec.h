@@ -80,7 +80,12 @@ slong _fmpz_vec_height_index(const fmpz * vec, slong len);
 
 /*  Input and output  ********************************************************/
 
-int _fmpz_vec_fprint(FILE * file, const fmpz * vec, slong len);
+int _fmpz_vec_fprint_ustream(ustream file, const fmpz * vec, slong len);
+static __inline__ int
+_fmpz_vec_fprint(FILE * file, const fmpz * vec, slong len)
+{
+    return _fmpz_vec_fprint_ustream(FILE2ustream(file), vec, len);
+}
 
 static __inline__
 int _fmpz_vec_print(const fmpz * vec, slong len)
@@ -88,7 +93,12 @@ int _fmpz_vec_print(const fmpz * vec, slong len)
     return _fmpz_vec_fprint(stdout, vec, len);
 }
 
-int _fmpz_vec_fread(FILE * file, fmpz ** vec, slong * len);
+int _fmpz_vec_fread_ustream(ustream file, fmpz ** vec, slong * len);
+static __inline__ int
+_fmpz_vec_fread(FILE * file, fmpz ** vec, slong * len)
+{
+    return _fmpz_vec_fread_ustream(FILE2ustream(file), vec, len);
+}
 
 static __inline__
 int _fmpz_vec_read(fmpz ** vec, slong * len)

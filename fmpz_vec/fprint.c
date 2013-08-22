@@ -44,20 +44,20 @@
     On failure, a negative number is returned.''
  */
 
-int _fmpz_vec_fprint(FILE * file, const fmpz * vec, slong len)
+int _fmpz_vec_fprint_ustream(ustream file, const fmpz * vec, slong len)
 {
     int r;
     slong i;
 
-    r = fprintf(file, "%li", len);
+    r = ustream_put_slong(file, len);
     if ((len > 0) && (r > 0))
     {
-        r = fputc(' ', file);
+        r = ustream_putc(' ', file);
         for (i = 0; (i < len) && (r > 0); i++)
         {
-            r = fputc(' ', file);
+            r = ustream_putc(' ', file);
             if (r > 0)
-                r = fmpz_fprint(file, vec + i);
+                r = _fmpz_fprint(file, vec + i);
         }
     }
 

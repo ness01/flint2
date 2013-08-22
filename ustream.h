@@ -62,7 +62,7 @@ static __inline__ int ustream_puts(const char* s, ustream stream)
     return stream.funcs->puts(stream.data, s);
 }
 /* NB: reversed arguments, just like putc */
-static __inline__ int ustream_uputc(char s, ustream stream)
+static __inline__ int ustream_putc(char s, ustream stream)
 {
     return stream.funcs->uputc(stream.data, s);
 }
@@ -102,7 +102,7 @@ static __inline__ int ustream_mpz_inp_str(mpz_t s, ustream stream, int i)
     return ustream_get_mpz(stream, i, s);
 }
 
-static __inline__ int ustream_ugetc(ustream stream)
+static __inline__ int ustream_getc(ustream stream)
 {
     return stream.funcs->ugetc(stream.data);
 }

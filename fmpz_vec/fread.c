@@ -30,7 +30,7 @@
 #include "fmpz.h"
 #include "fmpz_vec.h"
 
-int _fmpz_vec_fread(FILE * file, fmpz ** vec, slong * len)
+int _fmpz_vec_fread_ustream(ustream file, fmpz ** vec, slong * len)
 {
     int alloc, r;
     slong i;
@@ -39,7 +39,7 @@ int _fmpz_vec_fread(FILE * file, fmpz ** vec, slong * len)
     alloc = (*vec == NULL);
 
     mpz_init(t);
-    r = mpz_inp_str(t, file, 10);
+    r = ustream_mpz_inp_str(t, file, 10);
     if (r == 0)
     {
         if (alloc)
@@ -69,7 +69,7 @@ int _fmpz_vec_fread(FILE * file, fmpz ** vec, slong * len)
 
     for (i = 0; i < *len; i++)
     {
-        r = fmpz_fread(file, (*vec) + i);
+        r = _fmpz_fread(file, (*vec) + i);
         if (r <= 0)
         {
             if (alloc)
