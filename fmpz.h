@@ -36,6 +36,7 @@
 #include "flint.h"
 #include "nmod_vec.h"
 #include "fmpz-conversions.h"
+#include "ustream.h"
 
 #ifdef __cplusplus
  extern "C" {
@@ -300,11 +301,19 @@ int fmpz_equal_ui(const fmpz_t f, ulong g);
 
 int fmpz_read(fmpz_t f);
 
-int fmpz_fread(FILE * file, fmpz_t f);
+int _fmpz_fread(ustream file, fmpz_t f);
+static __inline__ int fmpz_fread(FILE * file, fmpz_t f)
+{
+    return _fmpz_fread(FILE2ustream(file), f);
+}
 
 int fmpz_print(const fmpz_t x);
 
-int fmpz_fprint(FILE * file, const fmpz_t x);
+int _fmpz_fprint(ustream file, const fmpz_t x);
+static __inline__ int fmpz_fprint(FILE * file, const fmpz_t x)
+{
+    return _fmpz_fprint(FILE2ustream(file), x);
+}
 
 size_t fmpz_sizeinbase(const fmpz_t f, int b);
 

@@ -1,3 +1,4 @@
+
 /*=============================================================================
 
     This file is part of FLINT.
@@ -19,20 +20,75 @@
 =============================================================================*/
 /******************************************************************************
 
-    Copyright (C) 2010 Sebastian Pancratz
+    Copyright (C) 2013 Tom Bachmann
 
 ******************************************************************************/
 
 #include <stdio.h>
-#include <gmp.h>
 
-#include "fmpz.h"
+#include "ustream.h"
 
-int _fmpz_fprint(ustream file, const fmpz_t x)
+static int cputs(void* d, const char* s)
 {
-	if (!COEFF_IS_MPZ(*x))
-        return ustream_put_slong(file, *x);
-	else 
-        return ustream_put_mpz(file, 10, COEFF_TO_PTR(*x));
+    return fputs(s, (FILE*) d);
 }
 
+static int cputc(void* d, char s)
+{
+    return fputc(s, (FILE*) d);
+}
+
+static int cput_mpz(void* d, int b, const mpz_t s)
+{
+    return (int) mpz_out_str((FILE*) d, b, s);
+}
+
+static int cput_ulong(void* d, ulong s)
+{
+    return fprintf((FILE*) d, "%lu", s);
+}
+
+static int cput_slong(void* d, slong s)
+{
+    return fprintf((FILE*) d, "%ld", s);
+}
+
+static int cget_slong(void* d, slong* s)
+{
+    return fscanf((FILE*) d, "%ld", s);
+}
+
+static int cget_ulong(void* d, ulong* s)
+{
+    return fscanf((FILE*) d, "%lu", s);
+}
+
+static int cgetc(void* d)
+{
+    return fgetc((FILE*) d);
+}
+
+static int cget_mpz(void* d, int b, mpz_t s)
+{
+    return mpz_inp_str(s, (FILE*) d, b);
+}
+
+static int ceof(void* d)
+{
+    return feof((FILE*) d);
+}
+
+const ustream_funcs __ustream_funcs_c_impl = {
+    &cputs,
+    &cputc,
+    &cput_mpz,
+    &cput_ulong,
+    &cput_slong,
+
+    &cget_slong,
+    &cget_ulong,
+    &cgetc,
+    &cget_mpz,
+
+    &ceof
+};

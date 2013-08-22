@@ -19,20 +19,53 @@
 =============================================================================*/
 /******************************************************************************
 
-    Copyright (C) 2010 Sebastian Pancratz
+    Copyright (C) 2013 Tom Bachmann
 
 ******************************************************************************/
 
 #include <stdio.h>
-#include <gmp.h>
+#include <stdlib.h>
 
-#include "fmpz.h"
+#include "ustream.h"
 
-int _fmpz_fprint(ustream file, const fmpz_t x)
+int
+main()
 {
-	if (!COEFF_IS_MPZ(*x))
-        return ustream_put_slong(file, *x);
-	else 
-        return ustream_put_mpz(file, 10, COEFF_TO_PTR(*x));
-}
+    FILE* f;
+    slong n;
 
+    printf("c_imp....");
+
+    f = fopen("ustream_c_impl_test", "w+");
+    if (!f)
+    {
+	printf("Error: unable to open file for writing.\n");
+	abort();
+    }
+
+    ustream_put_slong(FILE2ustream(f), 25);
+    ustream_puts("\nfoo\n", FILE2ustream(f));
+
+    fflush(f);
+    fclose(f);
+
+    f = fopen("ustream_c_impl_test", "r");
+    ustream_get_slong(FILE2ustream(f), &n);
+    if(n != 25)
+    {
+	printf("Error: read %ld, expected 25\n", n);
+	abort();
+    }
+
+    /* TODO more */
+
+    fclose(f);
+    if(remove("ustream_c_impl_test"))
+    {
+	printf("Error, unable to delete file ustream_c_impl_test\n");
+	abort();
+    }
+
+    printf("PASS\n");
+    return 0;
+}

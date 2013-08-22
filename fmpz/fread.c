@@ -30,13 +30,13 @@
 #include "fmpz.h"
 
 int 
-fmpz_fread(FILE * file, fmpz_t f)
+_fmpz_fread(ustream file, fmpz_t f)
 {
     mpz_t t;
     size_t r;
 
     mpz_init(t);
-    r = mpz_inp_str(t, file, 10);
+    r = ustream_mpz_inp_str(t, file, 10);
     fmpz_set_mpz(f, t);
     mpz_clear(t);
 
